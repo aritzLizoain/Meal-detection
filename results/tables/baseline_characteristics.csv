@@ -1,0 +1,8 @@
+Characteristic,n,mean,sd,min,max
+Participants,58,,,,
+Participant-days,6668,,,,
+Age (years),58,35.4,7.6,20.0,51.0
+Reported carbohydrate entries,39743,,,,
+Carbohydrate entries per day,6668,6.0,3.7,1.0,50.0
+Carbohydrate amount per entry (g),39743,22.4,16.6,0.1,132.697250366211
+Reported carbohydrates per day (g),6668,133.7,65.5,5.0,501.0
