@@ -4,7 +4,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 
-from data_processing import FEATURE_COLUMNS
+from data_processing.get_features import FEATURE_COLUMNS
 
 
 def logistic_regression_detector(train, val):

@@ -3,7 +3,16 @@ import matplotlib.dates as mdates
 import pandas as pd
 
 
-def plot_day(data, sid, date, output_file=None):
+def plot_day(
+    data,
+    sid,
+    date,
+    output_file=None,
+    predicted_events=None,
+    meals=None,
+    matches=None,
+    method=None,
+):
     """
     Plot one participant-day from raw eventlogs or aligned signals.
 
@@ -128,6 +137,84 @@ def plot_day(data, sid, date, output_file=None):
 
         title = f"Aligned signals | Participant {sid} | {day_start.date()}"
 
+        # Reported meals and predicted meal events (optional)
+        if meals is not None:
+    
+            day_meals = meals.loc[
+                (meals["sid"] == sid)
+                & (meals["timestamp"] >= day_start)
+                & (meals["timestamp"] < day_end)
+            ].sort_values("timestamp")
+    
+            for i, meal in enumerate(day_meals.itertuples()):
+                axes[0].axvline(
+                    meal.timestamp,
+                    color="tab:orange",
+                    linestyle="--",
+                    linewidth=1.5,
+                    alpha=0.8,
+                    label="Reported meal" if i == 0 else None,
+                )
+    
+                axes[0].annotate(
+                    f"{meal.carbs:g} g",
+                    xy=(meal.timestamp, 1),
+                    xycoords=("data", "axes fraction"),
+                    xytext=(3, -5),
+                    textcoords="offset points",
+                    rotation=90,
+                    ha="left",
+                    va="top",
+                    fontsize=8,
+                    color="tab:orange",
+                )
+    
+        if predicted_events is not None:
+    
+            day_predictions = predicted_events.loc[
+                (predicted_events["sid"] == sid)
+                & (predicted_events["timestamp"] >= day_start)
+                & (predicted_events["timestamp"] < day_end)
+            ].sort_values("timestamp")
+    
+            # Use the predicted-event timestamps from match_events()
+            matched_times = set()
+    
+            if matches is not None and not matches.empty:
+                matched_times = set(
+                    matches.loc[
+                        matches["sid"] == sid,
+                        "predicted_timestamp",
+                    ]
+                )
+    
+            shown_labels = set()
+    
+            for event in day_predictions.itertuples():
+    
+                is_matched = event.timestamp in matched_times
+    
+                color = "tab:green" if is_matched else "tab:red"
+                label = (
+                    "Matched prediction"
+                    if is_matched
+                    else "Unmatched prediction"
+                )
+    
+                axes[0].axvline(
+                    event.timestamp,
+                    color=color,
+                    linestyle="-",
+                    linewidth=2,
+                    alpha=0.85,
+                    label=label if label not in shown_labels else None,
+                )
+    
+                shown_labels.add(label)
+    
+        if method is not None:
+            title += f" | {method}"
+            
     # Shared formatting
     axes[0].set_title(title)
 

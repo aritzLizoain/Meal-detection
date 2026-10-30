@@ -2,7 +2,7 @@ import numpy as np
 
 from xgboost import XGBClassifier
 
-from data_processing import FEATURE_COLUMNS
+from data_processing.get_features import FEATURE_COLUMNS
 
 
 def xgboost_detector(train, val):

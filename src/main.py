@@ -9,6 +9,7 @@ from data_processing import (
     align_signals,
     aggregate_meals,
     create_labels,
+    filter_IDs_days,
 )
 
 from visualization import (
@@ -25,6 +26,7 @@ from models import (
     aggregate_predictions,
     rule_based_detector,
     logistic_regression_detector,
+    xgboost_detector
 )
 
 def main():
@@ -34,55 +36,64 @@ def main():
         eventlogs_dir=config.EVENTLOGS_DIR,
         baselines_file=config.BASELINES_FILE
     )
-
+    
     # Create common analysis subset
-    # Keep only participant-date combinations for which there is CGM, insulin, and carbs data
     subset = create_subset(
         eventlogs,
         config.RUNNABLE_CASES
     )
     
-    # Get baseline characteristics (and other relevant info) for included participants
-    # Creates CSV file under results/tables/
+    # Combine carb entries into meal events
+    meals = aggregate_meals(subset)
+    
+    # Filter IDs and days based on aggregated meal events
+    subset, meals = filter_IDs_days(
+        subset,
+        meals,
+        min_meals_day=3,
+        max_meals_day=6,
+        min_days_id=14,
+        consecutive=True,
+        output_file=config.FIGURES_DIR / "meal_frequency_filtering.png",
+    )
+    
+    # Baseline characteristics of retained participants
     get_baselines(
         baselines,
         subset,
         output_dir=config.TABLES_DIR
     )
     
-    # Visualize example day    
+    # Visualize example day
     plot_day(
         subset,
         sid=14,
-        date="2023-09-24",
-        output_file=config.FIGURES_DIR / "raw_day_14_2023-09-24.png"
+        date="2023-09-28",
+        output_file=config.FIGURES_DIR / "raw_day_14_2023-09-28.png"
     )
     
-    # Align data to 5-min grid   
+    # Align data to 5-min grid
     aligned = align_signals(subset)
     
-    # Visualize example day in aligned grid
+    # Visualize aligned example day
     plot_day(
         aligned,
         sid=14,
-        date="2023-09-24",
-        output_file=config.FIGURES_DIR / "aligned_day_14_2023-09-24.png"
+        date="2023-09-28",
+        output_file=config.FIGURES_DIR / "aligned_day_14_2023-09-28.png"
     )
     
     # Extract features
     features = get_features(aligned)
     
-    # Plot features for an example participant-day
+    # Plot features
     plot_features(
         features=features,
         subset=subset,
         sid=14,
-        date="2023-09-24",
-        output_file=config.FIGURES_DIR / "features_14_2023-09-24.png"
+        date="2023-09-28",
+        output_file=config.FIGURES_DIR / "features_14_2023-09-28.png"
     )
-    
-    # Combine carb entries into meal events
-    meals = aggregate_meals(subset)
     
     # Create training labels
     labeled = create_labels(
@@ -108,16 +119,16 @@ def main():
         "lstm": [],
     }
     
-    # # Example to understand cross-validation
-    # for fold, train, val in participant_cv(labeled, n_splits = 10):
-    #     print(
-    #         f"Fold {fold} | "
-    #         f"Training: {train['sid'].nunique()} participants | "
-    #         f"Validation: {val['sid'].nunique()} participants"
-    #     )
+    # Example to understand cross-validation
+    for fold, train, val in participant_cv(labeled, n_splits = 10):
+        print(
+            f"Fold {fold} | "
+            f"Training: {train['sid'].nunique()} participants | "
+            f"Validation: {val['sid'].nunique()} participants"
+        )
     
-    #     print("Validation IDs:", sorted(val["sid"].unique().tolist()))
-    #     print()
+        print("Validation IDs:", sorted(val["sid"].unique().tolist()))
+        print()
     
     # Cross-validation: generate out-of-fold predictions   
     for fold, train, val in participant_cv(labeled, n_splits= 5):
@@ -143,6 +154,14 @@ def main():
         logistic_pred["fold"] = fold
 
         predictions["logistic_regression"].append(logistic_pred)
+        
+        # XGBoost
+        print("Running XGBoost...")
+        
+        xgboost_pred = xgboost_detector(train, val)
+        xgboost_pred["fold"] = fold
+        
+        predictions["xgboost"].append(xgboost_pred)
 
     # Aggregate and evaluate each method
     results = []
@@ -168,13 +187,25 @@ def main():
             smoothing_window_min=15,
             max_gap_min=15,
         )
-
+        
         # One-to-one matching with reported meals
         matches, unmatched_predictions, unmatched_meals = match_events(
             method_events,
             meals,
             min_carbs=5,
-            tolerance_min=10,
+            tolerance_min=30,
+        )
+        
+        # Visualize detected meals
+        plot_day(
+            aligned,
+            sid=14,
+            date="2023-09-28",
+            predicted_events=method_events,
+            meals=meals,
+            matches=matches,
+            method=method,
+            output_file=config.FIGURES_DIR / f"predictions_{method}_14_2023-09-28.png",
         )
 
         n_reported_meals = (meals["carbs"] >= 5).sum()
