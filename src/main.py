@@ -44,7 +44,11 @@ def main():
     )
     
     # Combine carb entries into meal events
-    meals = aggregate_meals(subset)
+    meals = aggregate_meals(
+        subset,
+        max_gap_min= 15,
+        max_duration_min=30
+    )
     
     # Filter IDs and days based on aggregated meal events
     subset, meals = filter_IDs_days(
@@ -118,18 +122,7 @@ def main():
         "xgboost": [],
         "lstm": [],
     }
-    
-    # Example to understand cross-validation
-    for fold, train, val in participant_cv(labeled, n_splits = 10):
-        print(
-            f"Fold {fold} | "
-            f"Training: {train['sid'].nunique()} participants | "
-            f"Validation: {val['sid'].nunique()} participants"
-        )
-    
-        print("Validation IDs:", sorted(val["sid"].unique().tolist()))
-        print()
-    
+        
     # Cross-validation: generate out-of-fold predictions   
     for fold, train, val in participant_cv(labeled, n_splits= 5):
 
@@ -142,7 +135,7 @@ def main():
         # Rule-based detector
         print("Running rule-based detector...")
 
-        rule_pred = rule_based_detector(val)
+        rule_pred = rule_based_detector(val, min_roc=0.5, min_auc=300)
         rule_pred["fold"] = fold
 
         predictions["rule_based"].append(rule_pred)
@@ -186,6 +179,7 @@ def main():
             threshold=0.5,
             smoothing_window_min=15,
             max_gap_min=15,
+            max_duration_min=60
         )
         
         # One-to-one matching with reported meals
